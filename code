@@ -1,0 +1,116 @@
+-- GoatGuard v5.5: Public Edition
+-- Features: Auto-Answer, Panic Button, iMessage Alert, Nuclear Cleanup, Full-Screen.
+
+property goatName : ""
+property goatNumber : ""
+property guardActive : false
+
+-- 1. STARTUP & SETUP
+on run
+	-- Initial Setup: Only runs the very first time
+	if goatNumber is "" then
+		set goatName to text returned of (display dialog "Enter your Contact's Name (exactly as it appears in your Contacts app):" default answer "my goat")
+		set goatNumber to text returned of (display dialog "Enter their Phone Number (include +1 and no spaces):" default answer "+1")
+		display notification "GoatGuard configured for " & goatName with title "Setup Complete"
+	end if
+	
+	-- Dashboard UI
+	set theStatus to "OFF"
+	if guardActive then set theStatus to "ON"
+	
+	set userChoice to display alert "🐐 GOATGUARD v5.5" message "Guarding: " & goatName & return & "Status: " & theStatus buttons {"Deactivate", "Activate", "!!! PANIC !!!"} default button "Activate" as critical
+	
+	if button returned of userChoice is "Activate" then
+		set guardActive to true
+		display notification "GUARDIAN ACTIVE" with title "GoatGuard"
+	else if button returned of userChoice is "Deactivate" then
+		set guardActive to false
+		display notification "GUARDIAN STANDBY" with title "GoatGuard"
+	else if button returned of userChoice is "!!! PANIC !!!" then
+		my triggerPanic()
+	end if
+end run
+
+-- 2. BACKGROUND MONITOR (Checks every 0.5s)
+on idle
+	if guardActive and goatNumber is not "" then
+		tell application "System Events"
+			if exists (process "Notification Center") then
+				tell process "Notification Center"
+					set allWindows to every window
+					repeat with aWin in allWindows
+						-- Search for the Name or Number in the notification
+						if (exists static text goatNumber of aWin) or (exists static text goatName of aWin) then
+							my answerAndClear()
+							exit repeat
+						end if
+					end repeat
+				end tell
+			end if
+		end tell
+	end if
+	return 0.5
+end idle
+
+-- 3. AUTO-ANSWER LOGIC
+on answerAndClear()
+	tell application "System Events"
+		tell process "Notification Center"
+			try
+				set frontmost to true
+				key code 36 -- Enter to Accept
+			end try
+		end tell
+		delay 1
+		set volume output volume 100
+		set volume input volume 100
+		my forceQuitApps()
+		my maximizeFaceTime()
+	end tell
+end answerAndClear
+
+-- 4. PANIC BUTTON LOGIC
+on triggerPanic()
+	-- 1. iMessage Alert
+	try
+		tell application "Messages"
+			send "EMERGENCY: Calling you now!" to buddy goatNumber of (1st service whose service type is iMessage)
+		end tell
+	end try
+	
+	-- 2. System Prep
+	set volume output volume 100
+	set volume input volume 100
+	my forceQuitApps()
+	
+	-- 3. Initiate Call
+	open location "facetime://" & goatNumber
+	delay 4
+	my maximizeFaceTime()
+end triggerPanic
+
+-- 5. SUPPORT FUNCTIONS (Cleanup & Full Screen)
+on forceQuitApps()
+	-- Browser Safety: Skips Safari and Google Chrome
+	set survivors to {"Safari", "Google Chrome", "Script Editor", "Finder", "FaceTime", "GoatGuard", "Messages"}
+	tell application "System Events" to set allApps to name of every process whose background only is false
+	repeat with appName in allApps
+		if appName is not in survivors then
+			try
+				do shell script "killall " & quoted form of appName
+			end try
+		end if
+	end repeat
+end forceQuitApps
+
+on maximizeFaceTime()
+	try
+		tell application "FaceTime" to activate
+		delay 1
+		tell application "System Events" to tell process "FaceTime"
+			set frontmost to true
+			-- Native Full Screen Shortcut: Control + Command + F
+			keystroke "f" using {control down, command down}
+		end tell
+	end try
+end maximizeFaceTime
